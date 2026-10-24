@@ -12,4 +12,9 @@ foreach ($name in @('STRIPE_SECRET_KEY','STRIPE_WEBHOOK_SECRET','STRIPE_CLUB_PRI
 $payload = @{ deployment_configs = @{ production = @{ env_vars = $variables } } } | ConvertTo-Json -Depth 12 -Compress
 $result = Invoke-RestMethod -Method Patch -Uri "https://api.cloudflare.com/client/v4/accounts/$env:CLOUDFLARE_ACCOUNT_ID/pages/projects/$ProjectName" -Headers @{ Authorization = "Bearer $env:CLOUDFLARE_API_TOKEN" } -ContentType 'application/json' -Body $payload
 if (-not $result.success) { throw 'The provider configuration was not stored.' }
+$inspection = Invoke-RestMethod -Method Get -Uri "https://api.cloudflare.com/client/v4/accounts/$env:CLOUDFLARE_ACCOUNT_ID/pages/projects/$ProjectName" -Headers @{ Authorization = "Bearer $env:CLOUDFLARE_API_TOKEN" }
+if (-not $inspection.success) { throw 'The stored environment could not be inspected.' }
+foreach ($name in @('PRIVATE_SALT','STRIPE_SECRET_KEY','STRIPE_WEBHOOK_SECRET','STRIPE_CLUB_PRICE')) {
+    if ($inspection.result.deployment_configs.production.env_vars.$name.type -ne 'secret_text') { throw "Expected secret binding $name is missing. Preserve the existing deployment and inspect configuration before publishing." }
+}
 Write-Output 'Live payment variables stored without printing values. Publish a new deployment, configure the Stripe webhook and portal, then verify an actual provider event before selling Club capacity.'
