@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS ie_players(id TEXT PRIMARY KEY,room_id TEXT NOT NULL 
 CREATE INDEX IF NOT EXISTS ie_players_room ON ie_players(room_id,left_at,role);
 CREATE TABLE IF NOT EXISTS ie_actions(id TEXT PRIMARY KEY,room_id TEXT NOT NULL REFERENCES ie_rooms(id) ON DELETE CASCADE,actor TEXT NOT NULL,nonce TEXT NOT NULL,signature TEXT NOT NULL,revision INTEGER NOT NULL,kind TEXT NOT NULL,created_at INTEGER NOT NULL,UNIQUE(room_id,actor,nonce));
 CREATE INDEX IF NOT EXISTS ie_actions_room ON ie_actions(room_id,revision);
+CREATE UNIQUE INDEX IF NOT EXISTS ie_creation_nonce ON ie_actions(actor,nonce) WHERE kind='created';
 CREATE TABLE IF NOT EXISTS ie_events(id TEXT PRIMARY KEY,room_id TEXT NOT NULL REFERENCES ie_rooms(id) ON DELETE CASCADE,kind TEXT NOT NULL,message TEXT NOT NULL,created_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS ie_events_room ON ie_events(room_id,created_at DESC);
 CREATE TABLE IF NOT EXISTS ie_limits(identity TEXT NOT NULL,action TEXT NOT NULL,bucket INTEGER NOT NULL,count INTEGER NOT NULL,PRIMARY KEY(identity,action,bucket));

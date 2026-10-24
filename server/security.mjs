@@ -14,7 +14,7 @@ export function equalSecret(left, right) { if (typeof left !== 'string' || typeo
 export function identifier(value) { if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value ?? '')) fail(400, 'Choose a valid room or player identifier.'); return value; }
 export function text(value, label, maximum, minimum = 1) { if (typeof value !== 'string') fail(400, `${label} must be text.`); const normalized = value.trim().normalize('NFC'); if (normalized.length < minimum || normalized.length > maximum || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(normalized)) fail(400, `${label} must contain ${minimum}–${maximum} readable characters.`); return normalized; }
 export function shape(value, fields) { if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(key => !fields.includes(key))) fail(400, 'This action contains unsupported fields.'); }
-export function canonical(value) { if (Array.isArray(value)) return value.map(canonical); if (value && typeof value === 'object') return Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])])); return value; }
+export function canonical(value, depth = 0) { if (depth > 12) fail(400, 'The action nesting limit is twelve.'); if (Array.isArray(value)) return value.map(child => canonical(child, depth + 1)); if (value && typeof value === 'object') return Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key], depth + 1)])); return value; }
 export async function bodyOf(request, maximum = 12000) {
   if (!(request.headers.get('content-type') ?? '').toLowerCase().startsWith('application/json')) fail(415, 'Send this action as JSON.');
   const raw = await rawBody(request, maximum);
