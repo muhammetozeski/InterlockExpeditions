@@ -1,0 +1,9 @@
+# Independent dark appearance
+
+The interface uses its own CSS and component layout. It has hard chartreuse/orange controls on dark panels, no decorative 3D renderer, and no external font or UI package. The document exposes `data-interlock-theme="dark"`; its stylesheet and correction script carry `data-interlock-appearance="style"` and `"script"` markers for delivery inspection. The markers do not implement the theme: actual CSS sets `color-scheme: dark`, dark backgrounds and contrasting text.
+
+`assets/contrast.js` computes sRGB relative luminance, alpha-composites foreground/background colors through the ancestor chain and checks visible direct-text/control samples. Text below 4.5:1 is assigned whichever of black or white gives higher contrast. Placeholder colors use a CSS custom property. A MutationObserver schedules one animation-frame scan after relevant Blazor DOM changes.
+
+`scripts/Verify-Appearance.mjs` executes the production calculation and correction function against known numerical references and a minimal DOM fixture, including transparent colors, unreadable text, placeholders and a stable second pass. Its ten checks are not native browser evidence. A separate root-agent native read of the first live release found 81 visible direct-text/control samples, zero failures and zero unparsed colors; it observed body background rgb(16,16,15), text rgb(244,243,233) and actual dark color scheme. No private account interactions were part of that read.
+
+The [W3C contrast guidance](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html) defines the normal-text 4.5:1 threshold. This one feature is not a claim that the entire product has received an accessibility certification. Keyboard focus, visible control names, text alongside lamp colors and a responsive two-column-to-single-column layout are implemented in the portal source.

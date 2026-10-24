@@ -1,0 +1,17 @@
+# Room authority and progression
+
+The production route is `/api/rooms`. A host uses the `ie_account` HttpOnly cookie. Creating an account returns a private recovery key once; the database retains its SHA-256 hash. Guests do not need host accounts. The invitation code admits a new guest to one of two fixed roles subject to total and per-role capacity. It does not grant room management or access as an existing player.
+
+A guest has an HttpOnly cookie and receives a derived per-room recovery capability. The portal saves the room ID, player ID and key in tab/device storage. Only the relevant room request carries `X-IE-Player` and `X-IE-Key`; these values never enter an invitation URL. Storage failure is reported and the cookie recovery path remains usable. A device joined to one role cannot change its role by resubmitting Join.
+
+`server/rooms.mjs` snapshots the complete selected episode into a newly created room. Existing rooms therefore keep their authored rules if source content changes. Player projection sends the current crew's instruction, shared mutable machine controls and authorized floor-map details. It omits the other crew's card and objective configuration. Public source still contains fictional solutions: this is access separation for real room records, not a claim of cheating prevention.
+
+Each accepted input, movement, Check, arm or host operation updates the room revision in the same database batch as its action ledger. Pure station actions re-evaluate against the current state after a competing write. Their final SQL predicate checks current player membership, role, room revision, active status and deadline. Removing a player also changes the room revision and clears earlier confirmations. A player removed while its request body is still arriving cannot finish either a station action or a report.
+
+The first five stations require both crews to Check. Altering a setting clears both checks. A failed joint check or blocked move records a mistake and subtracts five seconds. The last station requires two actual overlapping fifteen-second readiness windows. A pause freezes the room countdown and extends already armed windows by the pause duration when resumed. Browser clocks display server timestamps; they do not authorize progress.
+
+The client assigns a request UUID to each logical mutation. An uncertain retry keeps it. The action ledger refuses changed content with the same UUID and returns current authorized state for an already accepted command. Room creation and a fresh-device Join also have retry identities, preventing duplicate room/player creation. A deferred response for a previous route cannot replace the current room in the portal.
+
+Timeouts are materialized on room access, owner lists and new-room creation. Expired active rooms consequently stop consuming the active-room allowance even when their original player devices are closed. Completed rooms remain until the host deletes them; hosts can retain fifty rooms. Private rooms have no public directory, chat stream or fabricated participant count.
+
+The in-memory SQL verification command covers the complete first episode, all six authored episode solutions, concurrent confirmations, fresh-device Join replay, a paused-body removal interleaving, pause/clock behavior, cross-owner and cross-room access, and cascading erasure. The separate live acceptance used actual production C# API classes with two real guest identities; see [publication evidence](Publication.md).
