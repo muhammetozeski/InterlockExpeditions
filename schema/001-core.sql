@@ -1,0 +1,18 @@
+PRAGMA foreign_keys = ON;
+CREATE TABLE IF NOT EXISTS ie_accounts(id TEXT PRIMARY KEY,alias TEXT NOT NULL,recovery_hash TEXT NOT NULL UNIQUE,created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS ie_sessions(token_hash TEXT PRIMARY KEY,account_id TEXT NOT NULL REFERENCES ie_accounts(id) ON DELETE CASCADE,expires_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS ie_sessions_account ON ie_sessions(account_id);
+CREATE TABLE IF NOT EXISTS ie_rooms(id TEXT PRIMARY KEY,owner_id TEXT NOT NULL REFERENCES ie_accounts(id) ON DELETE CASCADE,title TEXT NOT NULL,episode_id TEXT NOT NULL,episode_version TEXT NOT NULL,episode_snapshot TEXT NOT NULL,invite_nonce TEXT NOT NULL,join_hash TEXT NOT NULL,capacity INTEGER NOT NULL,status TEXT NOT NULL DEFAULT 'lobby' CHECK(status IN('lobby','active','paused','finished')),outcome TEXT,stage_index INTEGER NOT NULL DEFAULT 0,state TEXT NOT NULL,revision INTEGER NOT NULL DEFAULT 1,last_write TEXT NOT NULL DEFAULT '',duration_ms INTEGER NOT NULL,deadline INTEGER,remaining_ms INTEGER,paused_at INTEGER,started_at INTEGER,finished_at INTEGER,mistakes INTEGER NOT NULL DEFAULT 0,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS ie_rooms_owner ON ie_rooms(owner_id,updated_at DESC);
+CREATE TABLE IF NOT EXISTS ie_players(id TEXT PRIMARY KEY,room_id TEXT NOT NULL REFERENCES ie_rooms(id) ON DELETE CASCADE,token_hash TEXT NOT NULL,alias TEXT NOT NULL,role TEXT NOT NULL CHECK(role IN('signal','engine')),joined_at INTEGER NOT NULL,seen_at INTEGER NOT NULL,left_at INTEGER,UNIQUE(room_id,token_hash));
+CREATE INDEX IF NOT EXISTS ie_players_room ON ie_players(room_id,left_at,role);
+CREATE TABLE IF NOT EXISTS ie_actions(id TEXT PRIMARY KEY,room_id TEXT NOT NULL REFERENCES ie_rooms(id) ON DELETE CASCADE,actor TEXT NOT NULL,nonce TEXT NOT NULL,signature TEXT NOT NULL,revision INTEGER NOT NULL,kind TEXT NOT NULL,created_at INTEGER NOT NULL,UNIQUE(room_id,actor,nonce));
+CREATE INDEX IF NOT EXISTS ie_actions_room ON ie_actions(room_id,revision);
+CREATE TABLE IF NOT EXISTS ie_events(id TEXT PRIMARY KEY,room_id TEXT NOT NULL REFERENCES ie_rooms(id) ON DELETE CASCADE,kind TEXT NOT NULL,message TEXT NOT NULL,created_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS ie_events_room ON ie_events(room_id,created_at DESC);
+CREATE TABLE IF NOT EXISTS ie_limits(identity TEXT NOT NULL,action TEXT NOT NULL,bucket INTEGER NOT NULL,count INTEGER NOT NULL,PRIMARY KEY(identity,action,bucket));
+CREATE TABLE IF NOT EXISTS ie_reports(id TEXT PRIMARY KEY,room_id TEXT NOT NULL REFERENCES ie_rooms(id) ON DELETE CASCADE,player_id TEXT,reason TEXT NOT NULL,note TEXT NOT NULL,created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS ie_checkouts(id TEXT PRIMARY KEY,account_id TEXT NOT NULL REFERENCES ie_accounts(id) ON DELETE CASCADE,created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS ie_subscriptions(id TEXT PRIMARY KEY,account_id TEXT NOT NULL REFERENCES ie_accounts(id) ON DELETE CASCADE,customer_id TEXT NOT NULL,status TEXT NOT NULL,live INTEGER NOT NULL,expires_at INTEGER NOT NULL,updated_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS ie_subscriptions_account ON ie_subscriptions(account_id,expires_at);
+CREATE TABLE IF NOT EXISTS ie_billing_events(id TEXT PRIMARY KEY,signature TEXT NOT NULL,created_at INTEGER NOT NULL);
