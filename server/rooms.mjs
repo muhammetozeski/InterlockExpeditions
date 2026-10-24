@@ -21,6 +21,7 @@ function roomSummary(room) { return { id: room.id, title: room.title, episodeId:
 async function roster(db, roomId) { return (await db.prepare('SELECT id,alias,role,joined_at AS joinedAt,seen_at AS seenAt FROM ie_players WHERE room_id=? AND left_at IS NULL ORDER BY joined_at,id').bind(roomId).all()).results; }
 async function recentEvents(db, roomId) { return (await db.prepare('SELECT kind,message,created_at AS createdAt FROM ie_events WHERE room_id=? ORDER BY created_at DESC,id LIMIT 12').bind(roomId).all()).results; }
 async function ownerRoom(db, roomId, account) { requireAccount(account); const room = await roomOf(db, roomId); if (room.owner_id !== account.id) fail(404, 'This room does not belong to this host account.'); return room; }
+async function expireOwnedRooms(db, accountId, now) { await db.prepare("UPDATE ie_rooms SET status='finished',outcome='timeout',remaining_ms=0,finished_at=?,updated_at=?,revision=revision+1 WHERE owner_id=? AND status='active' AND deadline<=?").bind(now, now, accountId, now).run(); }
 
 /** Authorizes either the private HttpOnly guest cookie or an explicit per-room recovery capability. */
 async function playerOf(context, roomId) {
@@ -55,11 +56,11 @@ async function previouslyApplied(db, roomId, actor, nonce, signature) { const pr
 export async function roomRoutes(context) {
   const { request, db, account, parts, env, identity } = context, now = Date.now(); if (parts[0] !== 'rooms') return null;
   if (request.method === 'GET' && parts.length === 1) {
-    requireAccount(account); const rows = await db.prepare('SELECT * FROM ie_rooms WHERE owner_id=? ORDER BY updated_at DESC LIMIT 50').bind(account.id).all();
+    requireAccount(account); await expireOwnedRooms(db, account.id, now); const rows = await db.prepare('SELECT * FROM ie_rooms WHERE owner_id=? ORDER BY updated_at DESC LIMIT 50').bind(account.id).all();
     return json({ rooms: rows.results.map(roomSummary), premium: await premium(db, account.id) });
   }
   if (request.method === 'POST' && parts.length === 1) {
-    requireAccount(account); await limit(db, account.id, 'new-room', 10, 3600); const body = await bodyOf(request); shape(body, ['requestId', 'episodeId', 'title', 'durationMinutes']);
+    requireAccount(account); await limit(db, account.id, 'new-room', 10, 3600); const body = await bodyOf(request); shape(body, ['requestId', 'episodeId', 'title', 'durationMinutes']); await expireOwnedRooms(db, account.id, Date.now());
     const nonce = identifier(body.requestId), actor = 'host:' + account.id, signature = await hash(JSON.stringify(canonical(body)));
     const old = await db.prepare('SELECT room_id,signature FROM ie_actions WHERE actor=? AND nonce=? AND kind=?').bind(actor, nonce, 'created').first();
     if (old) { if (old.signature !== signature) fail(409, 'This room-creation identifier was already used with different settings.'); return json(await controlView(context, await ownerRoom(db, old.room_id, account)), 201); }
@@ -91,7 +92,7 @@ export async function roomRoutes(context) {
   }
   if (parts[2] === 'action') return playerAction(context, roomId);
   if (parts[2] === 'host') return hostAction(context, roomId);
-  if (parts[2] === 'report') { const player = await playerOf(context, roomId), body = await bodyOf(request); shape(body, ['reason', 'note']); if (!['unsafe', 'privacy', 'spam', 'broken'].includes(body.reason)) fail(400, 'Choose a supported report reason.'); await limit(db, player.id, 'report', 3, 3600); await db.prepare('INSERT INTO ie_reports(id,room_id,player_id,reason,note,created_at) VALUES(?,?,?,?,?,?)').bind(crypto.randomUUID(), roomId, player.id, body.reason, text(body.note ?? '', 'Report note', 900, 0), now).run(); return json({ ok: true }); }
+  if (parts[2] === 'report') { const player = await playerOf(context, roomId), body = await bodyOf(request); shape(body, ['reason', 'note']); if (!['unsafe', 'privacy', 'spam', 'broken'].includes(body.reason)) fail(400, 'Choose a supported report reason.'); await limit(db, player.id, 'report', 3, 3600); const result = await db.prepare('INSERT INTO ie_reports(id,room_id,player_id,reason,note,created_at) SELECT ?,room_id,id,?,?,? FROM ie_players WHERE id=? AND room_id=? AND left_at IS NULL').bind(crypto.randomUUID(), body.reason, text(body.note ?? '', 'Report note', 900, 0), now, player.id, roomId).run(); if (!result.meta.changes) fail(403, 'The host removed this player before the report was submitted.'); return json({ ok: true }); }
   if (parts[2] === 'delete') { await ownerRoom(db, roomId, account); const body = await bodyOf(request); shape(body, ['confirmation']); if (body.confirmation !== 'DELETE THIS ROOM') fail(400, 'Type DELETE THIS ROOM to erase this room and its crew records.'); const removed = await db.prepare("DELETE FROM ie_rooms WHERE id=? AND owner_id=? AND status='finished'").bind(roomId, account.id).run(); if (!removed.meta.changes) fail(409, 'End the room before deleting it.'); return json({ ok: true }); }
   return null;
 }

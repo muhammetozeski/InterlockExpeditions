@@ -12,6 +12,7 @@ class Database {
   async batch(statements) { this.native.exec('BEGIN IMMEDIATE'); try { const results = statements.map(statement => ({ success: true, meta: { changes: Number(this.native.prepare(statement.sql).run(...statement.values).changes) } })); this.native.exec('COMMIT'); return results; } catch (error) { this.native.exec('ROLLBACK'); throw error; } }
 }
 const database = new Database(); database.native.exec(await readFile(new URL('../schema/001-core.sql', import.meta.url), 'utf8'));
+database.native.exec(await readFile(new URL('../schema/002-billing.sql', import.meta.url), 'utf8'));
 const env = { DB: database, PRIVATE_SALT: 'in-memory-verification-only-not-a-provider-key' }, origin = 'https://interlock.example';
 let checks = 0, clock = Date.now(); const originalClock = Date.now; Date.now = () => clock;
 function check(value, label) { assert.ok(value, label); checks++; }
@@ -77,8 +78,48 @@ try {
   check((await call('rooms/' + roomId + '/join', { code: first.body.invitation, alias: 'Too late fixture', role: 'signal' })).status === 409, 'Finished room refuses a new guest');
   const second = await call('rooms', { ...settings, requestId: crypto.randomUUID(), title: 'Separate room namespace' }, other);
   check((await call('rooms/' + second.body.room.id + '/play', undefined, signal)).status === 404, 'A room capability cannot read another room');
+  const raceRoom = await call('rooms', { ...settings, requestId: crypto.randomUUID(), title: 'Paused-body authority fixture' }, owner), raceId = raceRoom.body.room.id, joinSettings = { requestId: crypto.randomUUID(), code: raceRoom.body.invitation, alias: 'Retryable fresh device', role: 'signal' };
+  const joins = await Promise.all([call('rooms/' + raceId + '/join', joinSettings), call('rooms/' + raceId + '/join', joinSettings)]);
+  check(joins.every(item => [200, 201].includes(item.status)) && joins[0].body.player.id === joins[1].body.player.id, 'Concurrent fresh-device join nonce creates one player and recovery identity');
+  await call('rooms/' + raceId + '/join', { requestId: crypto.randomUUID(), code: raceRoom.body.invitation, alias: 'Other race fixture', role: 'engine' }); await host(raceId, 'start');
+  const target = joins[0].body, originalPrepare = database.prepare.bind(database); let authorizedCount = 0, authorized;
+  const authorizedTwice = new Promise(resolve => authorized = resolve);
+  database.prepare = sql => { const statement = originalPrepare(sql); if (sql === 'SELECT * FROM ie_players WHERE id=? AND room_id=? AND left_at IS NULL') { const first = statement.first.bind(statement); statement.first = async () => { const found = await first(); if (found?.id === target.player.id && ++authorizedCount === 2) authorized(); return found; }; } return statement; };
+  function pausedBody(path, payload) {
+    let controller; const stream = new ReadableStream({ start(value) { controller = value; } });
+    const request = new Request(origin + '/api/rooms/' + raceId + '/' + path, { method: 'POST', headers: { Origin: origin, 'CF-Connecting-IP': '192.0.2.55', 'Content-Type': 'application/json', 'X-IE-Player': target.player.id, 'X-IE-Key': target.playerKey }, body: stream, duplex: 'half' });
+    const pending = onRequest({ request, env }); return { pending, release() { controller.enqueue(new TextEncoder().encode(JSON.stringify(payload))); controller.close(); } };
+  }
+  const pausedAction = pausedBody('action', { requestId: crypto.randomUUID(), stageId: 'dock', action: { type: 'route', value: 'east' } }), pausedReport = pausedBody('report', { reason: 'broken', note: 'In-memory paused-body fixture' });
+  await authorizedTwice; await host(raceId, 'kick', { playerId: target.player.id }); pausedAction.release(); pausedReport.release();
+  const rejected = await Promise.all([pausedAction.pending, pausedReport.pending]); database.prepare = originalPrepare;
+  check(rejected.every(response => response.status === 403), 'Player removed after initial authorization cannot finish pending action or report');
+  check(JSON.parse(database.native.prepare('SELECT state FROM ie_rooms WHERE id=?').get(raceId).state).route === 'north' && database.native.prepare('SELECT COUNT(*) AS n FROM ie_reports WHERE room_id=?').get(raceId).n === 0, 'Paused-body removal race changes neither machine state nor reports');
+  clock += 21 * 60000; const refreshed = await call('rooms', undefined, owner);
+  check(refreshed.body.rooms.find(room => room.id === raceId)?.outcome === 'timeout', 'Owner list materializes elapsed room clocks without a player revisit');
   await call('account/delete', { confirmation: 'DELETE MY ACCOUNT' }, owner); check((await call('rooms/' + roomId + '/play', undefined, signal)).status === 404, 'Owner erasure cascades private room and player data');
-  for (const episode of episodes) for (const stage of episode.stages) { const initial = initialStation(stage); check(!objective(stage, initial, clock), 'Authored station does not begin completed'); const projected = stationView(stage, initial, 'engine'); check(!Object.hasOwn(projected, 'config'), 'Player projection omits server objective configuration'); }
+  check(episodes.length === 6 && new Set(episodes.map(item => item.id)).size === 6, 'Six original complete episodes have distinct stable identifiers');
+  for (const episode of episodes) for (const stage of episode.stages) {
+    const initial = initialStation(stage); check(!objective(stage, initial, clock), 'Authored station does not begin completed');
+    const projected = stationView(stage, initial, 'engine'); check(!Object.hasOwn(projected, 'config') && projected.clue !== stage.signalClue, 'Player projection omits server objective and other-role card');
+    let state = initial;
+    const act = (role, action) => { const result = applyAction(stage, state, role, action, clock); assert.equal(result.penalty, 0, `${episode.id}/${stage.id}: valid authored solution was penalized`); state = result.state; return result; };
+    if (stage.kind === 'dials') { stage.config.dials.forEach((value, index) => act('engine', { type: 'dials', index, value })); act('signal', { type: 'route', value: stage.config.route }); }
+    if (stage.kind === 'relay') { stage.config.inputs.forEach((value, index) => act('signal', { type: 'inputs', index, value })); stage.config.bypass.forEach((value, index) => act('engine', { type: 'bypass', index, value })); }
+    if (stage.kind === 'route') {
+      const queue = [{ cell: stage.config.start, cargo: false, moves: [] }], seen = new Set(); let solution;
+      while (queue.length) { const item = queue.shift(), key = `${item.cell}:${item.cargo}`; if (seen.has(key)) continue; seen.add(key); if (item.cell === stage.config.exit && item.cargo) { solution = item.moves; break; } for (const [value, dr, dc] of [['up', -1, 0], ['right', 0, 1], ['down', 1, 0], ['left', 0, -1]]) { const row = Math.floor(item.cell / 4) + dr, col = item.cell % 4 + dc, cell = row * 4 + col; if (row >= 0 && row < 4 && col >= 0 && col < 4 && !stage.config.walls.includes(cell)) queue.push({ cell, cargo: item.cargo || cell === stage.config.cargo, moves: [...item.moves, value] }); } }
+      assert.ok(solution, `${episode.id}: authored cargo/exit map is unreachable`); act('signal', { type: 'gate', value: stage.config.gate }); for (const value of solution) act('engine', { type: 'move', value });
+    }
+    if (stage.kind === 'balance') {
+      let solution;
+      for (let mask = 0; mask < 8 && !solution; mask++) for (let ballast = -stage.config.ballastLimit; ballast <= stage.config.ballastLimit; ballast++) { const placements = [0, 1, 2].map(index => mask & 1 << index ? 'left' : 'right'), candidate = { ...initial, placements, ballast }; if (objective(stage, candidate, clock)) { solution = candidate; break; } }
+      assert.ok(solution, `${episode.id}: no valid all-crates balance`); solution.placements.forEach((value, index) => act('engine', { type: 'placement', index, value })); act('signal', { type: 'ballast', value: solution.ballast });
+    }
+    if (stage.kind === 'rings') { act('signal', { type: 'inner', value: stage.config.inner }); act('engine', { type: 'outer', value: stage.config.outer }); }
+    if (stage.kind === 'launch') { act('signal', { type: 'arm' }); check(act('engine', { type: 'arm' }).complete, `${episode.id}: actual overlapping terminal completion`); }
+    else { check(objective(stage, state, clock), `${episode.id}/${stage.id}: reachable objective with actual controls`); act('signal', { type: 'check' }); check(act('engine', { type: 'check' }).complete, `${episode.id}/${stage.id}: both real confirmations complete station`); }
+  }
   assert.throws(() => applyAction(episodes[0].stages[0], initialStation(episodes[0].stages[0]), 'engine', { type: 'dials', values: [5, 2, 8] }, clock)); checks++;
   console.log(`PASS ${checks} actual-SQL and cooperative-engine checks; no persistent fixture files or live accounts were created.`);
 } finally { Date.now = originalClock; database.native.close(); }
