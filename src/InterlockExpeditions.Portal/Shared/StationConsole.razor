@@ -1,0 +1,43 @@
+<fieldset disabled="@Disabled">
+@switch (Station.Kind)
+{
+    case "dials":
+        <h3>Dock settings</h3><div class="dials">@for (var index = 0; index < 3; index++) { var dial = index; <label>@DialNames[index]<select value="@Machine.Dials[index]" @onchange='args => NumberAsync("dials", args, dial)' disabled="@(Role != "engine")">@for (var value = 0; value < 8; value++) { <option value="@value">@value</option> }</select></label> }</div><label>Routing vane<select value="@Machine.Route" @onchange='args => Send.InvokeAsync(new { type = "route", value = args.Value?.ToString() })' disabled="@(Role != "signal")">@foreach (var route in Routes) { <option value="@route">@route.ToUpperInvariant()</option> }</select></label><p class="small">Signal crew controls the route. Machine crew controls the dials.</p>
+        break;
+    case "relay":
+        <h3>Live relay lattice</h3><h4>Input lamps · signal controls</h4><div class="lamps">@for (var index = 0; index < 3; index++) { var lamp = index; <button class="lamp @(Machine.Inputs[index] == 1 ? "on" : "")" @onclick='() => Send.InvokeAsync(new { type = "inputs", index = lamp, value = 1 - Machine.Inputs[lamp] })' disabled="@(Role != "signal")" aria-label="@($"Input {index + 1}: {(Machine.Inputs[index] == 1 ? "on" : "off")}")">@(index + 1)<br />@(Machine.Inputs[index] == 1 ? "ON" : "OFF")</button> }</div>
+        @if (Machine.Wiring.Length > 0) { <p class="small">Printed wire order: @string.Join(" · ", Machine.Wiring.Select((input, output) => $"input {input + 1} → output {output + 1}"))</p> }
+        <h4>Bypass switches · machine controls</h4><div class="lamps">@for (var index = 0; index < 3; index++) { var lamp = index; <button class="lamp engine @(Machine.Bypass[index] == 1 ? "on" : "")" @onclick='() => Send.InvokeAsync(new { type = "bypass", index = lamp, value = 1 - Machine.Bypass[lamp] })' disabled="@(Role != "engine")">@(index + 1)<br />@(Machine.Bypass[index] == 1 ? "ON" : "OFF")</button> }</div><h4>Calculated output</h4><div class="lamps">@for (var index = 0; index < 3; index++) { <span class="lamp @(Machine.Outputs[index] == 1 ? "on" : "")" style="display:grid;place-items:center">@(Machine.Outputs[index] == 1 ? "ON" : "OFF")</span> }</div>
+        break;
+    case "route":
+        <h3>@(Role == "signal" ? "Full loading-floor map" : "Trolley console · visited cells only")</h3><div class="floor" role="group" aria-label="Four by four loading floor">@for (var index = 0; index < 16; index++) { var cell = index; <span class="@TileClass(cell)" title="@($"Row {cell / 4 + 1}, column {cell % 4 + 1}")">@TileMark(cell)</span> }</div><p class="small">T trolley · C collection crate · E exit · G gate · # wall · ? uncharted. Row numbers increase downward.</p><p>Crate collected: <strong>@(Machine.Cargo ? "yes" : "no")</strong> · accepted moves @Machine.Steps</p>
+        @if (Role == "signal") { <label>Gate symbol<select value="@Machine.Gate" @onchange='args => NumberAsync("gate", args)'><option value="0">SUN</option><option value="1">MOON</option><option value="2">STAR</option></select></label> } else { <div class="arrows"><button class="up" @onclick='() => MoveAsync("up")' aria-label="Move up">↑</button><button class="left" @onclick='() => MoveAsync("left")' aria-label="Move left">←</button><button class="down" @onclick='() => MoveAsync("down")' aria-label="Move down">↓</button><button class="right" @onclick='() => MoveAsync("right")' aria-label="Move right">→</button></div> }
+        break;
+    case "balance":
+        <h3>Freight cradle</h3><div class="readouts"><div class="readout">Left load<strong>@Machine.Loads.Left</strong></div><div class="readout">Right load<strong>@Machine.Loads.Right</strong></div><div class="readout">Side limit<strong>@Machine.Limit</strong></div></div><div class="crate-controls">@for (var index = 0; index < 3; index++) { var crate = index; <label>Crate @((char)('A' + index))<select value="@Machine.Placements[index]" @onchange='args => Send.InvokeAsync(new { type = "placement", index = crate, value = args.Value?.ToString() })' disabled="@(Role != "engine")"><option value="off">Off cradle</option><option value="left">Left side</option><option value="right">Right side</option></select></label> }</div><label>Ballast · negative adds right, positive adds left<select value="@Machine.Ballast" @onchange='args => NumberAsync("ballast", args)' disabled="@(Role != "signal")">@for (var value = -Machine.BallastLimit; value <= Machine.BallastLimit; value++) { <option value="@value">@value</option> }</select></label><p>All crates loaded: <strong>@(Machine.Loads.Loaded ? "yes" : "no")</strong>. Balanced means both calculated loads match and stay within the limit.</p>
+        break;
+    case "rings":
+        <h3>Weather-seal assembly</h3><div class="seal" aria-label="@($"Outer {Symbols[Machine.Outer]}, inner {Symbols[Machine.Inner]}")">@Symbols[Machine.Outer]<span>@Symbols[Machine.Inner]</span></div><div class="ring-controls"><label>Inner ring · signal<select value="@Machine.Inner" @onchange='args => NumberAsync("inner", args)' disabled="@(Role != "signal")">@for (var index = 0; index < Symbols.Length; index++) { <option value="@index">@Symbols[index]</option> }</select></label><label>Outer ring · machine<select value="@Machine.Outer" @onchange='args => NumberAsync("outer", args)' disabled="@(Role != "engine")">@for (var index = 0; index < Symbols.Length; index++) { <option value="@index">@Symbols[index]</option> }</select></label></div>
+        break;
+    case "launch":
+        <h3>Both safety terminals</h3><div class="launch-ready"><div class="@(Machine.Armed.Signal > EffectiveClock ? "armed" : "")"><strong>SIGNAL</strong><p>@ArmText(Machine.Armed.Signal)</p></div><div class="@(Machine.Armed.Engine > EffectiveClock ? "armed" : "")"><strong>MACHINE</strong><p>@ArmText(Machine.Armed.Engine)</p></div></div><button class="primary" @onclick='() => Send.InvokeAsync(new { type = "arm" })'>Arm my @(Role == "signal" ? "signal" : "machine") terminal</button><p class="small">Coordinate before arming. The readiness windows must overlap on the server.</p>
+        break;
+}
+@if (Station.Kind != "launch") { <div class="check-line"><p>Signal check: <strong>@(Machine.Checked.Signal ? "ready" : "not yet")</strong> · Machine check: <strong>@(Machine.Checked.Engine ? "ready" : "not yet")</strong></p><button class="primary" @onclick='() => Send.InvokeAsync(new { type = "check" })'>Check station for my crew</button></div> }
+</fieldset>
+@if (Machine.Feedback.Length > 0) { <p class="status" role="status">@Machine.Feedback</p> }
+@code {
+    [Parameter, EditorRequired] public Station Station { get; set; } = new();
+    [Parameter] public string Role { get; set; } = "signal";
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public long EffectiveClock { get; set; }
+    [Parameter] public EventCallback<object> Send { get; set; }
+    Machine Machine => Station.Machine;
+    static readonly string[] DialNames = ["Brass dial", "Glass dial", "Paper dial"], Routes = ["north", "east", "south", "west"], Symbols = ["SUN", "WAVE", "BELL", "LEAF", "GEAR", "MOON"];
+    Task NumberAsync(string type, ChangeEventArgs args, int index = -1) { if (!int.TryParse(args.Value?.ToString(), out var value)) return Task.CompletedTask; return index < 0 ? Send.InvokeAsync(new { type, value }) : Send.InvokeAsync(new { type, index, value }); }
+    Task MoveAsync(string value) => Send.InvokeAsync(new { type = "move", value });
+    string TileClass(int cell) => "tile" + (Machine.Walls.Contains(cell) ? " wall" : "") + (Role == "engine" && !Machine.Visited.Contains(cell) && cell != Machine.ExitCell ? " unknown" : "") + (cell == Machine.Position ? " current" : "") + (cell == Machine.CargoCell && !Machine.Cargo ? " cargo" : "") + (cell == Machine.ExitCell ? " exit" : "");
+    string TileMark(int cell) => cell == Machine.Position ? "T" : Machine.Walls.Contains(cell) ? "#" : cell == Machine.ExitCell ? "E" : cell == Machine.CargoCell && !Machine.Cargo ? "C" : cell == Machine.GateCell ? "G" : Role == "engine" && !Machine.Visited.Contains(cell) ? "?" : "·";
+    string ArmText(long until) => until > EffectiveClock ? $"Armed for {(int)Math.Ceiling((until - EffectiveClock) / 1000d)} seconds" : "Not armed";
+}
+

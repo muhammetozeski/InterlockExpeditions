@@ -73,13 +73,13 @@ export function applyAction(stage, current, role, action, now) {
   }
   switch (stage.kind) {
     case 'dials':
-      if (action.type === 'dials') { roleIs(role, 'engine'); if (!Array.isArray(action.values) || action.values.length !== 3) throw new GameError('Set the three numbered dials.'); state.dials = action.values.map(value => integer(value, 0, 7)); }
+      if (action.type === 'dials') { roleIs(role, 'engine'); if (Object.hasOwn(action, 'values')) { if (!Array.isArray(action.values) || action.values.length !== 3) throw new GameError('Set the three numbered dials.'); state.dials = action.values.map(value => integer(value, 0, 7)); } else state.dials[integer(action.index, 0, 2)] = integer(action.value, 0, 7); }
       else if (action.type === 'route') { roleIs(role, 'signal'); if (!routes.includes(action.value)) throw new GameError('Choose a routing direction.'); state.route = action.value; }
       else throw new GameError('That control is not available at the dock.');
       break;
     case 'relay':
-      if (action.type === 'inputs') { roleIs(role, 'signal'); state.inputs = bits(action.values); }
-      else if (action.type === 'bypass') { roleIs(role, 'engine'); state.bypass = bits(action.values); }
+      if (action.type === 'inputs') { roleIs(role, 'signal'); if (Object.hasOwn(action, 'values')) state.inputs = bits(action.values); else { const index = integer(action.index, 0, 2); state.inputs[index] = integer(action.value, 0, 1); } }
+      else if (action.type === 'bypass') { roleIs(role, 'engine'); if (Object.hasOwn(action, 'values')) state.bypass = bits(action.values); else { const index = integer(action.index, 0, 2); state.bypass[index] = integer(action.value, 0, 1); } }
       else throw new GameError('Choose an input or bypass control.');
       break;
     case 'route':

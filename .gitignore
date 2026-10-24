@@ -12,3 +12,8 @@ PFX-PAROLA.txt
 AppCache/
 UserData/
 UserCache/
+/public/*
+!/public/_headers
+!/public/explore/
+!/public/robots.txt
+!/public/sitemap.xml

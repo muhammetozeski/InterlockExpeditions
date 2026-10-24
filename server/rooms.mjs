@@ -1,6 +1,6 @@
 import { episodeById } from '../content/episodes.mjs';
 import { applyAction, initialStation, shiftStationClock, stationView } from './engine.mjs';
-import { bodyOf, canonical, cookie, cookieValue, day, equalSecret, fail, hash, hmac, identifier, json, limit, premium, requireAccount, shape, text, token } from './security.mjs';
+import { bodyOf, canonical, cookie, cookieValue, day, derivedToken, equalSecret, fail, hash, hmac, identifier, json, limit, premium, requireAccount, shape, text, token } from './security.mjs';
 
 /** Derives an invitation without storing its printable code in the database. */
 async function invitation(room, salt) { return (await hmac(salt, 'invite|' + room.id + '|' + room.invite_nonce)).slice(0, 8).toUpperCase(); }
@@ -78,14 +78,14 @@ export async function roomRoutes(context) {
   if (request.method === 'GET' && parts.length === 3 && parts[2] === 'play') { const player = await playerOf(context, roomId); return json(await playView(context, roomId, player.id)); }
   if (request.method !== 'POST' || parts.length !== 3) return null;
   if (parts[2] === 'join') {
-    await limit(db, identity, 'join-room', 12); const body = await bodyOf(request); shape(body, ['code', 'alias', 'role']); const room = await roomOf(db, roomId), code = text(body.code, 'Invitation code', 8, 8).toUpperCase();
-    if (!equalSecret(await hash(code), room.join_hash)) fail(404, 'The invitation code is unavailable. Ask the host for the current invitation.');
+    await limit(db, identity, 'join-room', 12); const body = await bodyOf(request); shape(body, ['requestId', 'code', 'alias', 'role']); const room = await roomOf(db, roomId), code = text(body.code, 'Invitation code', 8, 8).toUpperCase(), alias = text(body.alias, 'Player alias', 40);
     if (!['signal', 'engine'].includes(body.role)) fail(400, 'Choose the signal or machine crew.');
-    const oldCookie = cookieValue(request, 'ie_guest'), guest = oldCookie ?? token(), digest = await hash(guest), previous = await db.prepare('SELECT * FROM ie_players WHERE room_id=? AND token_hash=?').bind(roomId, digest).first();
-    if (previous) { if (previous.left_at) fail(403, 'This player was removed. Ask the host before rejoining.'); return json(await playView(context, roomId, previous.id)); }
+    const oldCookie = cookieValue(request, 'ie_guest'), guest = oldCookie ?? (body.requestId ? await derivedToken(env.PRIVATE_SALT, 'join|' + roomId + '|' + identifier(body.requestId)) : token()), digest = await hash(guest), previous = await db.prepare('SELECT * FROM ie_players WHERE room_id=? AND token_hash=?').bind(roomId, digest).first();
+    if (previous) { if (previous.left_at) fail(403, 'This player was removed. Ask the host before rejoining.'); if (previous.role !== body.role || previous.alias !== alias) fail(409, 'This browser already joined with a different alias or crew. Restore that player instead.'); return json(await playView(context, roomId, previous.id), 200, oldCookie ? null : cookie('ie_guest', guest)); }
+    if (!equalSecret(await hash(code), room.join_hash)) fail(404, 'The invitation code is unavailable. Ask the host for the current invitation.');
     const playerId = crypto.randomUUID();
     const inserted = await db.prepare("INSERT INTO ie_players(id,room_id,token_hash,alias,role,joined_at,seen_at) SELECT ?,id,?,?,?,?,? FROM ie_rooms WHERE id=? AND join_hash=? AND status IN('lobby','active','paused') AND (SELECT COUNT(*) FROM ie_players WHERE room_id=ie_rooms.id AND left_at IS NULL)<capacity AND (SELECT COUNT(*) FROM ie_players WHERE room_id=ie_rooms.id AND left_at IS NULL AND role=?)<capacity/2 ON CONFLICT(room_id,token_hash) DO NOTHING").bind(playerId, digest, text(body.alias, 'Player alias', 40), body.role, now, now, roomId, await hash(code), body.role).run();
-    if (!inserted.meta.changes) fail(409, 'That crew is full, the invitation changed, or the room has ended. Choose the other crew or ask the host.');
+    if (!inserted.meta.changes) { const prior = await db.prepare('SELECT * FROM ie_players WHERE room_id=? AND token_hash=? AND left_at IS NULL').bind(roomId, digest).first(); if (prior && prior.alias === alias && prior.role === body.role) return json(await playView(context, roomId, prior.id), 200, oldCookie ? null : cookie('ie_guest', guest)); fail(409, 'That crew is full, the invitation changed, or the room has ended. Choose the other crew or ask the host.'); }
     await db.prepare('INSERT INTO ie_events(id,room_id,kind,message,created_at) VALUES(?,?,?,?,?)').bind(crypto.randomUUID(), roomId, 'joined', `${text(body.alias, 'Player alias', 40)} joined the ${body.role === 'signal' ? 'signal' : 'machine'} crew.`, now).run();
     return json(await playView(context, roomId, playerId), 201, oldCookie ? null : cookie('ie_guest', guest));
   }
