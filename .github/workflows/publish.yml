@@ -1,0 +1,36 @@
+name: Publish Interlock Expeditions
+on:
+  push:
+    branches: [main]
+    paths: ['src/**', 'server/**', 'functions/**', 'content/**', 'schema/**', 'public/**', 'scripts/**', 'wrangler.toml', 'package.json', '.github/workflows/publish.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  deployments: write
+concurrency:
+  group: interlock-production
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - name: Exercise real SQLite and cooperative stations
+        run: node scripts/Verify-Service.mjs
+      - name: Compile the independent C# portal
+        shell: pwsh
+        run: ./scripts/Publish.ps1
+      - name: Deploy browser application and persistent room functions
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy public --project-name=muhammetozeski-interlock-expeditions --branch=main
+          gitHubToken: ${{ github.token }}

@@ -1,0 +1,8 @@
+name = "muhammetozeski-interlock-expeditions"
+compatibility_date = "2026-10-01"
+pages_build_output_dir = "public"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "interlock-expeditions"
+database_id = "f59d2c9d-a1be-4bcc-bb1b-3ba3d3a2a976"
