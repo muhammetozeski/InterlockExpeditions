@@ -1,3 +1,4 @@
+import { furtherEpisodes } from './further-episodes.mjs';
 /** Original fictional episodes. Server imports these definitions; player views disclose only the current authorized role card. */
 export const episodes = [
   {
@@ -55,7 +56,8 @@ export const episodes = [
         config: { windowMs: 15000 }
       }
     ]
-  }
+  },
+  ...furtherEpisodes
 ];
 
 /** Returns a server-owned immutable episode definition or an absent result. */
