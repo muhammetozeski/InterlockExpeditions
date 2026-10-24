@@ -1,4 +1,5 @@
 using InterlockExpeditions.Portal.Models;
+using InterlockExpeditions.Portal.Services;
 
 namespace InterlockExpeditions.Portal.Shared;
 
@@ -7,6 +8,7 @@ public abstract class LiveExpeditionPage : ExpeditionPage, IAsyncDisposable
 {
     protected readonly CancellationTokenSource Lifetime = new();
     Task? Watching;
+    protected string ConnectionWarning = "";
     long ClockOffset;
     protected long ServerClock => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + ClockOffset;
     protected void ObserveClock(Room room) => ClockOffset = room.ServerNow - DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -28,9 +30,9 @@ public abstract class LiveExpeditionPage : ExpeditionPage, IAsyncDisposable
                 {
                     if (++ticks % 4 == 0 && !Busy)
                     {
-                        try { await refresh(); }
+                        try { await refresh(); ConnectionWarning = ""; }
                         catch (OperationCanceledException) when (Lifetime.IsCancellationRequested) { return; }
-                        catch (Exception error) { Status = "The last room update could not be read. The service still owns your progress; refresh when the connection returns."; HasError = true; Logger.LogWarning("Room refresh failed; type={Type}", error.GetType().Name); }
+                        catch (Exception error) { ConnectionWarning = error is ExpeditionFailure ? error.Message : "Could not refresh the room. Retrying shortly."; Logger.LogWarning("Room refresh failed; type={Type}", error.GetType().Name); }
                     }
                     if (!Lifetime.IsCancellationRequested) StateHasChanged();
                 });

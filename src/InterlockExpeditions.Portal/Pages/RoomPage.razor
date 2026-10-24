@@ -5,24 +5,26 @@
 <PageTitle>@(Current?.Room.Title ?? "Join a crew") — Interlock Expeditions</PageTitle>
 @if (Status.Length > 0) { <p class="status @(HasError ? "error" : "")" role="status">@Status</p> }
 @if (StorageWarning.Length > 0) { <p class="notice">@StorageWarning</p> }
-@if (Current is null)
+@if (ConnectionWarning.Length > 0) { <p class="notice" role="status">@ConnectionWarning</p> }
+@if (Current is null && Busy) { <h1>Opening room</h1> }
+else if (Current is null)
 {
-    <p class="eyebrow">Private expedition invitation</p><h1>Join the other half.</h1><p>Use the host's room code and choose a crew. Keep the two crew cards on separate devices for the puzzle experience.</p><section class="panel"><fieldset disabled="@Busy"><label>Invitation code<input @bind="Code" maxlength="8" autocomplete="off" /></label><label>Your display alias<input @bind="Alias" maxlength="40" autocomplete="nickname" /></label><label>Crew<select @bind="Role"><option value="signal">Signal crew · manuals and signals</option><option value="engine">Machine crew · dials and trolley</option></select></label><button class="primary" @onclick="JoinAsync" disabled="@(Code.Length != 8 || string.IsNullOrWhiteSpace(Alias))">Join this real room</button><button @onclick="RestoreAsync" disabled="@(Module is null)">Restore this device's player</button></fieldset><p class="small">You do not need a host account. A private room-player capability is stored only on this device; it is never part of the invitation.</p></section>
+    <h1>Join a crew</h1><p>Choose your crew and keep its clue card on this device.</p><section class="panel"><fieldset disabled="@Busy"><label>Invitation code<input @bind="Code" maxlength="8" autocomplete="off" /></label><label>Your nickname<input @bind="Alias" maxlength="40" autocomplete="nickname" /></label><label>Crew<select @bind="Role"><option value="signal">Signal crew · manuals and signals</option><option value="engine">Machine crew · dials and trolley</option></select></label><button class="primary" @onclick="JoinAsync" disabled="@(Code.Length != 8 || string.IsNullOrWhiteSpace(Alias))">Join room</button><details><summary>Already joined on this device?</summary><button @onclick="RestoreAsync" disabled="@(Module is null)">Resume my player</button></details></fieldset><p class="small">No account needed. Your player is saved on this device.</p></section>
 }
 else
 {
     <div class="row"><div><span class="badge @Current.Player.Role">@(Current.Player.Role == "signal" ? "SIGNAL DESK" : "MACHINE DESK")</span><h1>@Current.Room.Title</h1><p>@Current.EpisodeTitle · playing as @Current.Player.Alias</p></div><strong class="clock" aria-label="Room time remaining">@Clock(Current.Room)</strong></div>
     <div class="station-progress" aria-label="@($"{Math.Min(Current.Room.StageIndex, Current.StageCount)} of {Current.StageCount} stations complete")">@for (var index = 0; index < Current.StageCount; index++) { <span class="@(index < Current.Room.StageIndex ? "done" : index == Current.Room.StageIndex ? "current" : "")"></span> }</div>
-    <ul class="crew-list">@foreach (var player in Current.Players) { <li><strong>@player.Alias</strong> · @(player.Role == "signal" ? "signal" : "machine") @if (Current.Room.ServerNow - player.SeenAt > 90000) { <span>· not seen recently</span> }</li> }</ul>
-    @if (Current.Room.Status == "lobby") { <section class="panel"><h2>Both crews meet here.</h2><p>@Current.Introduction</p><p>Waiting for the host to start. At least one real guest must join each crew. Speak in person or on your usual call; this site does not record your microphone.</p><a class="button" href="@("/control/" + RoomId)">Host controls · owner access required</a></section> }
+    <details open="@(Current.Room.Status == "lobby")"><summary>Players (@Current.Players.Count)</summary><ul class="crew-list">@foreach (var player in Current.Players) { <li><strong>@player.Alias</strong> · @(player.Role == "signal" ? "signal" : "machine") @if (Current.Room.ServerNow - player.SeenAt > 90000) { <span>· not seen recently</span> }</li> }</ul></details>
+    @if (Current.Room.Status == "lobby") { <section class="panel"><h2>Waiting for the host</h2><p>@Current.Introduction</p><p>Each crew needs a player before starting. Talk in person or on your usual call.</p></section> }
     else if (Current.Room.Status == "finished") { <section class="ending"><p class="eyebrow">@Current.Room.Outcome</p><h2>@(Current.Room.Outcome == "escaped" ? "Both crews made it." : Current.Room.Outcome == "timeout" ? "The room clock reached zero." : "The host ended this room.")</h2><p>@Current.Ending</p><p>@Math.Min(Current.Room.StageIndex, Current.StageCount) stations completed · @Current.Room.Mistakes recorded mistakes.</p><p>Your room record remains available until the host erases it. A new expedition uses a separate room.</p><a class="button primary" href="/">Choose the next expedition</a></section> }
     else if (Current.Station is { } station)
     {
         @if (Current.Room.Status == "paused") { <p class="notice">The host paused the clock and machine controls. Your settings and readiness windows are kept.</p> }
-        <h2>@station.Title</h2><p>@station.Scene</p><div class="console-grid"><section class="role-card @Current.Player.Role"><p class="eyebrow">Only your crew's card</p><h3>Read. Explain. Coordinate.</h3><p>@station.Clue</p><details><summary>Open a station-specific hint</summary><p>@station.Hint</p></details><p class="small">Changing a machine setting clears both check marks. The server advances only when both crews have checked a valid objective.</p></section><section class="machine"><StationConsole Station="station" Role="Current.Player.Role" Disabled="@(Busy || Current.Room.Status != "active")" EffectiveClock="@(Current.Room.Status == "paused" ? Current.Room.PausedAt ?? ServerClock : ServerClock)" Send="SendAsync" /></section></div>
+        <h2>@station.Title</h2><p>@station.Scene</p><div class="console-grid"><section class="role-card @Current.Player.Role"><h3>Your crew's clue</h3><p>@station.Clue</p><details><summary>Need a hint?</summary><p>@station.Hint</p></details>@if (station.Kind != "launch") { <p class="small">After changing a setting, both crews need to check again.</p> }</section><section class="machine"><StationConsole Station="station" Role="Current.Player.Role" Disabled="@(Busy || Current.Room.Status != "active")" EffectiveClock="@(Current.Room.Status == "paused" ? Current.Room.PausedAt ?? ServerClock : ServerClock)" Send="SendAsync" /></section></div>
     }
-    <div class="toolbar"><button @onclick="RefreshAsync" disabled="@Busy">Read current room state</button><span class="small">Shared progress refreshes every few seconds. Only the server advances a station.</span></div>
-    <details><summary>Recent real room events</summary><ul class="event-log">@foreach (var item in Current.Events) { <li>@item.Message</li> }</ul></details><details><summary>Report a room problem</summary><label>Reason<select @bind="ReportReason"><option value="broken">Broken game behavior</option><option value="unsafe">Unsafe or abusive aliases</option><option value="privacy">Privacy concern</option><option value="spam">Spam</option></select></label><label>Details<textarea @bind="ReportNote" maxlength="900" rows="2"></textarea></label><button @onclick="ReportAsync" disabled="@Busy">Send report</button></details>
+    <div class="toolbar"><button @onclick="RefreshAsync" disabled="@Busy">Refresh</button><span class="small">Updates automatically.</span></div>
+    <details><summary>Room activity</summary><ul class="event-log">@foreach (var item in Current.Events) { <li>@item.Message</li> }</ul></details><details><summary>Report a problem</summary><label>Reason<select @bind="ReportReason"><option value="broken">Game not working</option><option value="unsafe">Abusive nicknames</option><option value="privacy">Privacy concern</option><option value="spam">Spam</option></select></label><label>Details<textarea @bind="ReportNote" maxlength="900" rows="2"></textarea></label><button @onclick="ReportAsync" disabled="@Busy">Send report</button></details>
 }
 @code {
     [Parameter] public string RoomId { get; set; } = "";
@@ -38,7 +40,7 @@ else
     async Task RestoreCoreAsync()
     {
         if (Module is not null) { try { Identity = await Module.InvokeAsync<PlayerIdentity?>("player", RoomId); } catch (JSException) { Identity = null; StorageWarning = "The device's saved player could not be read. The service will try this browser's private cookie instead."; } }
-        try { await ApplyAsync(await Api.PlayAsync(RoomId, Identity, Lifetime.Token)); Status = "Your authorized crew state was restored."; }
+        try { await ApplyAsync(await Api.PlayAsync(RoomId, Identity, Lifetime.Token)); Status = ""; }
         catch (ExpeditionFailure error) when (error.Status is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.NotFound) { Current = null; Identity = null; Status = "Enter this room's invitation to join, or ask the host for the current code."; }
     }
     async Task ApplyAsync(PlayState incoming)
@@ -50,9 +52,9 @@ else
     }
     async Task ReloadAsync() { if (Identity is not null) await ApplyAsync(await Api.PlayAsync(RoomId, Identity, Lifetime.Token)); }
     Task RestoreAsync() => RunAsync(RestoreCoreAsync);
-    Task RefreshAsync() => RunAsync(ReloadAsync);
-    Task JoinAsync() => RunAsync(async () => { await ApplyAsync(await Api.JoinAsync(RoomId, Code, Alias, Role)); Status = "Joined the real room. Keep your private crew card on this device."; });
-    Task SendAsync(object action) => RunAsync(async () => { if (Current?.Station is not { } station || Identity is null) return; var requestedRoom = RoomId; var result = await Api.ActAsync(requestedRoom, station.Id, action, Identity); if (requestedRoom != RoomId) return; await ApplyAsync(result); HasError = false; Status = Current?.Room.Outcome == "escaped" ? "Expedition completed by both crews." : "Your control was applied to the shared machine."; });
+    Task RefreshAsync() => RunAsync(async () => { await ReloadAsync(); ConnectionWarning = ""; });
+    Task JoinAsync() => RunAsync(async () => { await ApplyAsync(await Api.JoinAsync(RoomId, Code, Alias, Role)); Status = ""; });
+    Task SendAsync(object action) => RunAsync(async () => { if (Current?.Station is not { } station || Identity is null) return; var requestedRoom = RoomId; var result = await Api.ActAsync(requestedRoom, station.Id, action, Identity); if (requestedRoom != RoomId) return; await ApplyAsync(result); HasError = false; Status = ""; });
     Task ReportAsync() => RunAsync(async () => { if (Identity is null) return; await Api.ReportAsync(RoomId, ReportReason, ReportNote, Identity); ReportNote = ""; Status = "Room report submitted."; });
     protected override async ValueTask DisposeBrowserAsync() { if (Module is not null) await Module.DisposeAsync(); }
 }

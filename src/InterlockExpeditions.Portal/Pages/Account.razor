@@ -3,24 +3,26 @@
 @inject IJSRuntime Javascript
 @implements IAsyncDisposable
 <PageTitle>Host account — Interlock Expeditions</PageTitle>
-<p class="eyebrow">Private host identity</p><h1>Keep your room controls.</h1><p>Only hosts need an account. Crew members join with an invitation. An alias is a display name; we do not claim it is a verified real-world identity.</p>
+<h1>Host account</h1><p>Create an account or use your recovery key to sign in.</p>
 @if (Status.Length > 0) { <p class="status @(HasError ? "error" : "")" role="status">@Status</p> }
-@if (RecoveryKey.Length > 0) { <section class="panel"><h2>Save this recovery key now</h2><p>It is shown once. Anyone holding it can access your host account. Store it privately, outside a room invitation.</p><p class="key">@RecoveryKey</p><button @onclick="DownloadKeyAsync" disabled="@(Busy || Module is null)">Download private recovery key</button><a class="button primary" href="/host">Continue to your rooms</a></section> }
+@if (RecoveryKey.Length > 0) { <section class="panel"><h2>Save your recovery key</h2><p>This is your way back into the account. It is shown once; keep it private.</p><p class="key">@RecoveryKey</p><button @onclick="DownloadKeyAsync" disabled="@(Busy || Module is null)">Download key</button><a class="button primary" href="@ContinueLink">Continue</a></section> }
 @if (Current.Account is null)
 {
     <div class="split"><section class="panel"><h2>New host</h2><label>Display alias<input @bind="Alias" maxlength="60" autocomplete="nickname" /></label><button class="primary" @onclick="CreateAsync" disabled="@(Busy || string.IsNullOrWhiteSpace(Alias))">Create free host account</button><p class="small">No email address or payment is required. Save the recovery key supplied after creation.</p></section><section class="panel"><h2>Recover an existing account</h2><label>Private recovery key<input type="password" @bind="Recovery" maxlength="43" autocomplete="off" /></label><button @onclick="RecoverAsync" disabled="@(Busy || Recovery.Length != 43)">Recover host access</button></section></div>
 }
-else
+else if (RecoveryKey.Length == 0)
 {
-    <section class="panel"><h2>@Current.Account.Alias</h2><p>You are signed in with a real host session. Your crew identity is separate from these room-management permissions.</p><a class="button primary" href="/host">Open your rooms</a><button @onclick="LogoutAsync" disabled="@Busy">Sign out of this browser</button></section><details><summary>Erase this host account and its rooms</summary><p>Ending a room preserves it. This action instead deletes the account, its rooms and associated crew records. A paid period must end before account deletion.</p><label>Type DELETE MY ACCOUNT<input @bind="Deletion" autocomplete="off" /></label><button class="danger" @onclick="DeleteAsync" disabled="@(Busy || Deletion != "DELETE MY ACCOUNT")">Erase host account</button></details>
+    <section class="panel"><h2>@Current.Account.Alias</h2><a class="button primary" href="@ContinueLink">@(string.IsNullOrWhiteSpace(RequestedEpisode) ? "Your rooms" : "Continue with your story")</a><button @onclick="LogoutAsync" disabled="@Busy">Sign out</button></section><details><summary>Delete account and rooms</summary><p>This deletes the account and all its rooms. An active paid period or open checkout must end first.</p><label>Type DELETE MY ACCOUNT<input @bind="Deletion" autocomplete="off" /></label><button class="danger" @onclick="DeleteAsync" disabled="@(Busy || Deletion != "DELETE MY ACCOUNT")">Delete account</button></details>
 }
 @code {
+    [SupplyParameterFromQuery(Name = "episode")] public string? RequestedEpisode { get; set; }
+    string ContinueLink => string.IsNullOrWhiteSpace(RequestedEpisode) ? "/host" : "/host?episode=" + Uri.EscapeDataString(RequestedEpisode);
     AccountResult Current = new(); string Alias = "", Recovery = "", RecoveryKey = "", Deletion = ""; IJSObjectReference? Module;
     protected override Task OnInitializedAsync() => RunAsync(async () => Current = await Api.AccountAsync());
     protected override async Task OnAfterRenderAsync(bool first) { if (first) { try { Module = await Javascript.InvokeAsync<IJSObjectReference>("import", "/assets/device.js"); } catch (JSException) { Status = "File download is unavailable; copy the private key into a safe place."; } StateHasChanged(); } }
     Task CreateAsync() => RunAsync(async () => { Current = await Api.CreateAccountAsync(Alias); RecoveryKey = Current.RecoveryKey ?? ""; Status = "Host account created. Save its private recovery key before leaving."; });
     Task RecoverAsync() => RunAsync(async () => { Current = await Api.RecoverAccountAsync(Recovery); Recovery = ""; RecoveryKey = ""; Status = "Host access restored."; });
-    Task LogoutAsync() => RunAsync(async () => { await Api.LogoutAsync(); Current = new(); RecoveryKey = ""; Status = "This browser's host session ended. Crew identities are independent."; });
+    Task LogoutAsync() => RunAsync(async () => { await Api.LogoutAsync(); Current = new(); RecoveryKey = ""; Status = "Signed out."; });
     Task DeleteAsync() => RunAsync(async () => { await Api.DeleteAccountAsync(Deletion); Current = new(); RecoveryKey = ""; Deletion = ""; Status = "Host account and its room records were erased."; });
     Task DownloadKeyAsync() => RunAsync(async () => { if (Module is not null) await Module.InvokeVoidAsync("download", "interlock-private-host-key.txt", "Interlock Expeditions host recovery key\nKeep this file private.\n\n" + RecoveryKey); });
     public async ValueTask DisposeAsync() { if (Module is not null) await Module.DisposeAsync(); }

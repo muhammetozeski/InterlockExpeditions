@@ -4,7 +4,7 @@ export const episodes = [
   {
     id: 'midnight-lift', version: '1.0.0', title: 'The Midnight Lift', minutes: 20,
     tagline: 'Move a tiny night museum above the rising canal before the last lift leaves.',
-    introduction: 'The Canal Museum is small enough to fit inside a lift, but tonight its keeper has misplaced the instruction book. One crew has the signal manual; the other has the machine console. Speak to each other, make a plan, and move the collection upstairs. These are fictional machines: no real equipment or physical travel is required.',
+    introduction: 'The Canal Museum is small enough to fit inside a lift, but tonight its keeper has misplaced the instruction book. One crew has the signal manual; the other has the machine console. Speak to each other, make a plan, and move the collection upstairs.',
     ending: 'The lift reaches the dry gallery. A clockwork moth unfolds a paper banner: OPEN TOMORROW. The keeper promises to label the manuals before the next rain.',
     stages: [
       {
@@ -17,7 +17,7 @@ export const episodes = [
       },
       {
         id: 'relays', kind: 'relay', title: '2. Repair the relay lattice',
-        scene: 'Three input lamps cross a small relay lattice. Inputs are on the signal terminal; bypass switches are on the machine terminal. The output lamps show the actual computed result.',
+        scene: 'Three input lamps cross a small relay lattice. Inputs are on the signal terminal; bypass switches are on the machine terminal. The output lamps show the result.',
         signalClue: 'Tell the machine crew: their bypass switches must be ON, OFF, ON, from left to right. Your input pattern is written on their card. The wires carry input 3 to output 1, input 1 to output 2, and input 2 to output 3. An ON bypass flips its incoming lamp. Both crews check when the output is ready.',
         engineClue: 'Tell the signal crew: their input lamps must be OFF, ON, ON. Ask them for your bypass pattern. An ON bypass flips the corresponding incoming lamp. The required final output is OFF, OFF, OFF; follow the cards rather than changing lamps at random.',
         hint: 'Use the other crew’s instruction for your own three controls. The wire crossings are not the same as the screen order.',
@@ -51,7 +51,7 @@ export const episodes = [
         id: 'launch', kind: 'launch', title: '6. Send the lift upstairs',
         scene: 'The lift is loaded and sealed. The two safety terminals now need a live confirmation from both crews. An armed terminal stays ready for fifteen seconds.',
         signalClue: 'Tell the machine crew when you are about to arm. Press Arm signal terminal; their terminal must also be armed before your fifteen-second window ends. You can arm again if a window expires. Do not reload to reset the room clock.',
-        engineClue: 'Coordinate with the signal crew and press Arm machine terminal. Both readiness windows must overlap. Network updates may take a few seconds, so agree verbally before arming. The server checks the actual overlap.',
+        engineClue: 'Coordinate with the signal crew and press Arm machine terminal. Both readiness windows must overlap. Network updates may take a few seconds, so agree verbally before arming.',
         hint: 'Count down together, then each crew presses its own Arm button. There is no reaction-time prize.',
         config: { windowMs: 15000 }
       }
