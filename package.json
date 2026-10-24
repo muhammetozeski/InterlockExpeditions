@@ -4,6 +4,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "verify": "node scripts/Verify-Service.mjs"
+    "verify": "node scripts/Verify-Service.mjs && node scripts/Verify-Billing.mjs && node scripts/Verify-Appearance.mjs"
   }
 }

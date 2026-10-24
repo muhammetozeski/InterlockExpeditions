@@ -24,6 +24,10 @@ jobs:
           dotnet-version: '10.0.x'
       - name: Exercise real SQLite and cooperative stations
         run: node scripts/Verify-Service.mjs
+      - name: Verify signed billing boundaries without charging a provider
+        run: node scripts/Verify-Billing.mjs
+      - name: Check appearance contrast computation and correction
+        run: node scripts/Verify-Appearance.mjs
       - name: Compile the independent C# portal
         shell: pwsh
         run: ./scripts/Publish.ps1
