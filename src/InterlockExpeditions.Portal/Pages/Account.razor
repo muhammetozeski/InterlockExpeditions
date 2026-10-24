@@ -16,10 +16,10 @@ else if (RecoveryKey.Length == 0)
 }
 @code {
     [SupplyParameterFromQuery(Name = "episode")] public string? RequestedEpisode { get; set; }
-    string ContinueLink => string.IsNullOrWhiteSpace(RequestedEpisode) ? "/host" : "/host?episode=" + Uri.EscapeDataString(RequestedEpisode);
+    string ContinueLink => string.IsNullOrWhiteSpace(RequestedEpisode) ? "host" : "host?episode=" + Uri.EscapeDataString(RequestedEpisode);
     AccountResult Current = new(); string Alias = "", Recovery = "", RecoveryKey = "", Deletion = ""; IJSObjectReference? Module;
     protected override Task OnInitializedAsync() => RunAsync(async () => Current = await Api.AccountAsync());
-    protected override async Task OnAfterRenderAsync(bool first) { if (first) { try { Module = await Javascript.InvokeAsync<IJSObjectReference>("import", "/assets/device.js"); } catch (JSException) { Status = "File download is unavailable; copy the private key into a safe place."; } StateHasChanged(); } }
+    protected override async Task OnAfterRenderAsync(bool first) { if (first) { try { Module = await Javascript.InvokeAsync<IJSObjectReference>("import", "./assets/device.js"); } catch (JSException) { Status = "File download is unavailable; copy the private key into a safe place."; } StateHasChanged(); } }
     Task CreateAsync() => RunAsync(async () => { Current = await Api.CreateAccountAsync(Alias); RecoveryKey = Current.RecoveryKey ?? ""; Status = "Host account created. Save its private recovery key before leaving."; });
     Task RecoverAsync() => RunAsync(async () => { Current = await Api.RecoverAccountAsync(Recovery); Recovery = ""; RecoveryKey = ""; Status = "Host access restored."; });
     Task LogoutAsync() => RunAsync(async () => { await Api.LogoutAsync(); Current = new(); RecoveryKey = ""; Status = "Signed out."; });

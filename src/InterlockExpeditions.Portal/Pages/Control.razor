@@ -16,21 +16,21 @@
     @if (Current.Room.Status == "finished") { <details><summary>Erase this ended room</summary><p>This deletes its crew identities, progress and event records. It does not affect another room or the authored episode.</p><label>Type DELETE THIS ROOM<input @bind="Deletion" autocomplete="off" /></label><button class="danger" @onclick='DeleteAsync' disabled="@(Busy || Deletion != "DELETE THIS ROOM")">Erase ended room</button></details> }
 }
 else if (Busy) { <p>Opening room controls.</p> }
-else { <p><a href="/account">Sign in with the account that created this room</a>.</p> }
+else { <p><a href="account">Sign in with the account that created this room</a>.</p> }
 @code {
     [Parameter] public string RoomId { get; set; } = "";
     RoomControl? Current; IJSObjectReference? Module; string Deletion = ""; string? LoadedRoom; bool EndConfirmed, NeedsReload;
     bool BothCrews => Current?.Players.Any(player => player.Role == "signal") == true && Current.Players.Any(player => player.Role == "engine");
     string JoinLink => Navigation.BaseUri.TrimEnd('/') + "/room/" + RoomId + "?invite=" + Current?.Invitation;
     protected override async Task OnParametersSetAsync() { if (LoadedRoom != RoomId) { LoadedRoom = RoomId; Current = null; EndConfirmed = false; Deletion = ""; } if (Busy) { NeedsReload = true; return; } await RunAsync(async () => { Apply(await Api.ControlAsync(RoomId, Lifetime.Token)); Watch(ReloadAsync, () => Current?.Room.Status == "finished"); }); }
-    protected override async Task OnAfterRenderAsync(bool first) { if (first) { try { Module = await Javascript.InvokeAsync<IJSObjectReference>("import", "/assets/device.js"); } catch (JSException) { Status = "Clipboard access is unavailable. Copy the invitation from its visible field."; } StateHasChanged(); } if (NeedsReload && !Busy) { NeedsReload = false; await RunAsync(async () => { await ReloadAsync(); Watch(ReloadAsync, () => Current?.Room.Status == "finished"); }); StateHasChanged(); } }
+    protected override async Task OnAfterRenderAsync(bool first) { if (first) { try { Module = await Javascript.InvokeAsync<IJSObjectReference>("import", "./assets/device.js"); } catch (JSException) { Status = "Clipboard access is unavailable. Copy the invitation from its visible field."; } StateHasChanged(); } if (NeedsReload && !Busy) { NeedsReload = false; await RunAsync(async () => { await ReloadAsync(); Watch(ReloadAsync, () => Current?.Room.Status == "finished"); }); StateHasChanged(); } }
     void Apply(RoomControl incoming) { if (incoming.Room.Id != RoomId) return; if (Current is null || incoming.Room.Id != Current.Room.Id || incoming.Room.Revision >= Current.Room.Revision) { Current = incoming; ObserveClock(incoming.Room); } }
     async Task ReloadAsync() => Apply(await Api.ControlAsync(RoomId, Lifetime.Token));
     Task RefreshAsync() => RunAsync(async () => { await ReloadAsync(); ConnectionWarning = ""; });
     Task CommandAsync(string type) => RunAsync(async () => { var requestedRoom = RoomId; var result = await Api.HostAsync(requestedRoom, type); if (requestedRoom != RoomId) return; Apply(result); Status = type == "rotate" ? "New invitation ready. Copy it to invite players." : ""; EndConfirmed = false; });
     Task KickAsync(string id) => RunAsync(async () => { var requestedRoom = RoomId; var result = await Api.HostAsync(requestedRoom, "kick", id); if (requestedRoom != RoomId) return; Apply(result); Status = "Player removed."; });
     Task CopyAsync() => RunAsync(async () => { if (Module is not null) Status = await Module.InvokeAsync<bool>("copy", JoinLink) ? "Room invitation copied." : "Copy the invitation from its visible field."; });
-    Task DeleteAsync() => RunAsync(async () => { await Api.DeleteRoomAsync(RoomId, Deletion); Navigation.NavigateTo("/host"); });
+    Task DeleteAsync() => RunAsync(async () => { await Api.DeleteRoomAsync(RoomId, Deletion); Navigation.NavigateTo("host"); });
     protected override async ValueTask DisposeBrowserAsync() { if (Module is not null) await Module.DisposeAsync(); }
 }
 

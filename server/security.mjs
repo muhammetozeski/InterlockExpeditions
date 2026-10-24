@@ -1,3 +1,4 @@
+import { appBasePath } from './paths.mjs';
 const encoder = new TextEncoder();
 export const day = 86400000;
 export class ServiceError extends Error { constructor(status, message, code = 'invalid_request') { super(message); this.status = status; this.code = code; } }
@@ -29,7 +30,7 @@ export async function rawBody(request, maximum) {
   try { return new TextDecoder('utf-8', { fatal: true }).decode(buffer); } catch { fail(400, 'Use valid UTF-8 text.'); }
 }
 export function cookieValue(request, name) { const value = (request.headers.get('cookie') ?? '').split(';').map(part => part.trim()).find(part => part.startsWith(name + '='))?.slice(name.length + 1); return /^[A-Za-z0-9_-]{43}$/.test(value ?? '') ? value : null; }
-export function cookie(name, value, maxAge = 2592000) { return `${name}=${value}; Path=/api; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Strict`; }
+export function cookie(name, value, maxAge = 2592000, basePath = '/') { return `${name}=${value}; Path=${appBasePath(basePath)}api; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Strict`; }
 export function sameOrigin(request) { if (request.headers.get('origin') !== new URL(request.url).origin) fail(403, 'Submit this action from Interlock Expeditions.', 'origin'); }
 export async function accountOf(request, db) { const value = cookieValue(request, 'ie_account'); if (!value) return null; return db.prepare('SELECT a.id,a.alias,a.created_at AS createdAt FROM ie_accounts a JOIN ie_sessions s ON s.account_id=a.id WHERE s.token_hash=? AND s.expires_at>?').bind(await hash(value), Date.now()).first(); }
 export function requireAccount(account) { if (!account) fail(401, 'Create a host account or recover your existing account to continue.', 'account_required'); return account; }

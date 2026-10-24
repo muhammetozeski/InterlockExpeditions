@@ -3,8 +3,8 @@
 <PageTitle>Interlock Expeditions — A ready adventure for two crews</PageTitle>
 <h1>Solve an adventure together.</h1><p>Choose a story, invite a friend on another device and solve it using your different clue cards.</p>
 <p class="small">Two crews · 20–30 minutes · all six stories free · internet and a way to talk required</p>
-<div class="toolbar"><a class="button primary" href="/host">Host a room</a><a class="button" href="/help">How to play</a></div>
+<div class="toolbar"><a class="button primary" href="host">Host a room</a><a class="button" href="help">How to play</a></div>
 @if (Status.Length > 0) { <p class="status @(HasError ? "error" : "")" role="status">@Status</p> }
 <h2>Choose a story</h2>
-<div class="pack-list">@for (var index = 0; index < Episodes.Count; index++) { var episode = Episodes[index]; <article class="pack"><h3>@episode.Title</h3><p>@episode.Tagline</p><p class="small">About @episode.Minutes minutes · @episode.Stations puzzles</p><a class="button primary" href="@("/host?episode=" + Uri.EscapeDataString(episode.Id))">Choose this story</a><details><summary>Story briefing</summary><p>@episode.Introduction</p></details></article> }</div>
+<div class="pack-list">@for (var index = 0; index < Episodes.Count; index++) { var episode = Episodes[index]; <article class="pack"><h3>@episode.Title</h3><p>@episode.Tagline</p><p class="small">About @episode.Minutes minutes · @episode.Stations puzzles</p><a class="button primary" href="@("host?episode=" + Uri.EscapeDataString(episode.Id))">Choose this story</a><details><summary>Story briefing</summary><p>@episode.Introduction</p></details></article> }</div>
 @code { List<Episode> Episodes = []; protected override Task OnInitializedAsync() => RunAsync(async () => { Episodes = (await Api.EpisodesAsync()).Episodes; }); }

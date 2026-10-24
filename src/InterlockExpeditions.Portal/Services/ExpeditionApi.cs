@@ -47,7 +47,7 @@ public sealed class ExpeditionApi(HttpClient http, ILogger<ExpeditionApi> logger
 
     async Task<T> SendAsync<T>(HttpMethod method, string path, object? payload, PlayerIdentity? player = null, CancellationToken cancellationToken = default)
     {
-        using var request = new HttpRequestMessage(method, "/api/" + path);
+        using var request = new HttpRequestMessage(method, "api/" + path);
         if (payload is not null) request.Content = JsonContent.Create(payload);
         if (player is not null)
         {

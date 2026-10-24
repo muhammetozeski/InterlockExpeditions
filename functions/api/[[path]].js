@@ -4,19 +4,25 @@ import { billingRoutes } from '../../server/billing.mjs';
 import { episodes } from '../../content/episodes.mjs';
 import { GameError } from '../../server/engine.mjs';
 import { accountOf, fail, hash, json, limit, sameOrigin, ServiceError } from '../../server/security.mjs';
+import { appBasePath, apiRoute } from '../../server/paths.mjs';
+import { authenticateMountedRequest } from '../../server/mount-gateway.mjs';
 
 /** Routes actual same-origin account and crew requests without logging submitted content or credentials. */
 export async function onRequest({ request, env }) {
   try {
+    const authenticated = await authenticateMountedRequest(request, env);
+    if (authenticated instanceof Response) return authenticated;
+    ({ request, env } = authenticated);
     if (!env.DB || !env.PRIVATE_SALT) fail(503, 'The room service is not configured. No local state is being presented as a shared room.');
     if (!['GET', 'POST'].includes(request.method)) fail(405, 'This method is not supported.');
-    const url = new URL(request.url), parts = url.pathname.slice(4).replace(/^\/+|\/+$/g, '').split('/').filter(Boolean);
+    const url = new URL(request.url), basePath = appBasePath(env.APP_BASE_PATH), parts = apiRoute(url, basePath);
+    if (parts === null) fail(404, 'This Interlock Expeditions action was not found.');
     if (request.method === 'POST' && parts.join('/') !== 'billing/webhook') sameOrigin(request);
     const identity = await hash(env.PRIVATE_SALT + '|' + (request.headers.get('CF-Connecting-IP') ?? 'unknown'));
     await limit(env.DB, identity, 'http-' + request.method, request.method === 'GET' ? 360 : 180);
     if (request.method === 'GET' && parts.join('/') === 'health') return json({ ok: true, product: 'Interlock Expeditions', engine: 'ie-stations-v1' });
     if (request.method === 'GET' && parts.join('/') === 'episodes') return json({ episodes: episodes.map(episode => ({ id: episode.id, version: episode.version, title: episode.title, minutes: episode.minutes, tagline: episode.tagline, introduction: episode.introduction, stations: episode.stages.length })) });
-    const account = await accountOf(request, env.DB), context = { request, env, db: env.DB, account, parts, url, identity };
+    const account = await accountOf(request, env.DB), context = { request, env, db: env.DB, account, parts, url, identity, basePath };
     for (const handler of [billingRoutes, accountRoutes, roomRoutes]) { const response = await handler(context); if (response) return response; }
     fail(404, 'This Interlock Expeditions action was not found.');
   } catch (error) {

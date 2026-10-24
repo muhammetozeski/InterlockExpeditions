@@ -17,7 +17,7 @@ else
     <div class="station-progress" aria-label="@($"{Math.Min(Current.Room.StageIndex, Current.StageCount)} of {Current.StageCount} stations complete")">@for (var index = 0; index < Current.StageCount; index++) { <span class="@(index < Current.Room.StageIndex ? "done" : index == Current.Room.StageIndex ? "current" : "")"></span> }</div>
     <details open="@(Current.Room.Status == "lobby")"><summary>Players (@Current.Players.Count)</summary><ul class="crew-list">@foreach (var player in Current.Players) { <li><strong>@player.Alias</strong> · @(player.Role == "signal" ? "signal" : "machine") @if (Current.Room.ServerNow - player.SeenAt > 90000) { <span>· not seen recently</span> }</li> }</ul></details>
     @if (Current.Room.Status == "lobby") { <section class="panel"><h2>Waiting for the host</h2><p>@Current.Introduction</p><p>Each crew needs a player before starting. Talk in person or on your usual call.</p></section> }
-    else if (Current.Room.Status == "finished") { <section class="ending"><p class="eyebrow">@Current.Room.Outcome</p><h2>@(Current.Room.Outcome == "escaped" ? "Both crews made it." : Current.Room.Outcome == "timeout" ? "The room clock reached zero." : "The host ended this room.")</h2><p>@Current.Ending</p><p>@Math.Min(Current.Room.StageIndex, Current.StageCount) stations completed · @Current.Room.Mistakes recorded mistakes.</p><p>Your room record remains available until the host erases it. A new expedition uses a separate room.</p><a class="button primary" href="/">Choose the next expedition</a></section> }
+    else if (Current.Room.Status == "finished") { <section class="ending"><p class="eyebrow">@Current.Room.Outcome</p><h2>@(Current.Room.Outcome == "escaped" ? "Both crews made it." : Current.Room.Outcome == "timeout" ? "The room clock reached zero." : "The host ended this room.")</h2><p>@Current.Ending</p><p>@Math.Min(Current.Room.StageIndex, Current.StageCount) stations completed · @Current.Room.Mistakes recorded mistakes.</p><p>Your room record remains available until the host erases it. A new expedition uses a separate room.</p><a class="button primary" href="">Choose the next expedition</a></section> }
     else if (Current.Station is { } station)
     {
         @if (Current.Room.Status == "paused") { <p class="notice">The host paused the clock and machine controls. Your settings and readiness windows are kept.</p> }
@@ -34,7 +34,7 @@ else
     protected override void OnParametersSet() { if (LoadedRoom != RoomId) { LoadedRoom = RoomId; Current = null; Identity = null; Code = Invitation ?? ""; Role = PreferredCrew is "signal" or "engine" ? PreferredCrew : "signal"; NeedsRestore = Module is not null; } }
     protected override async Task OnAfterRenderAsync(bool first)
     {
-        if (first) { await RunAsync(async () => { try { Module = await Javascript.InvokeAsync<IJSObjectReference>("import", "/assets/device.js"); } catch (JSException) { StorageWarning = "Private device storage is unavailable. Keep this tab open while playing."; } await RestoreCoreAsync(); }); StateHasChanged(); }
+        if (first) { await RunAsync(async () => { try { Module = await Javascript.InvokeAsync<IJSObjectReference>("import", "./assets/device.js"); } catch (JSException) { StorageWarning = "Private device storage is unavailable. Keep this tab open while playing."; } await RestoreCoreAsync(); }); StateHasChanged(); }
         else if (NeedsRestore && !Busy) { NeedsRestore = false; await RunAsync(RestoreCoreAsync); StateHasChanged(); }
     }
     async Task RestoreCoreAsync()

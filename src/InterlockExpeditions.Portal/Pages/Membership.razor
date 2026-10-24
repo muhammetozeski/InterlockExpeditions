@@ -4,7 +4,7 @@
 <PageTitle>Host allowances — Interlock Expeditions</PageTitle>
 <h1>Host allowances</h1><p>All stories are free. Larger groups can use Club when subscriptions are available.</p>
 @if (Status.Length > 0) { <p class="status @(HasError ? "error" : "")" role="status">@Status</p> }
-<div class="split"><section class="panel"><h2>Free</h2><ul><li>Two active rooms</li><li>Six devices per room, split between the crews</li><li>All six stories, pause and reconnect</li></ul><a class="button primary" href="/host">Host a room</a></section><section class="panel"><h2>Club</h2>
+<div class="split"><section class="panel"><h2>Free</h2><ul><li>Two active rooms</li><li>Six devices per room, split between the crews</li><li>All six stories, pause and reconnect</li></ul><a class="button primary" href="host">Host a room</a></section><section class="panel"><h2>Club</h2>
 @if (!Loaded) { <p>@(Busy ? "Loading availability." : "Refresh to check availability.")</p> }
 else
 {
@@ -12,7 +12,7 @@ else
     @if (Current.Premium) { <p class="notice">Active through @EndDate.</p> }
     @if (Current.Subscription is not null) { <p>Subscription: <strong>@Current.Subscription.Status</strong>.</p> }
     @if (!Current.Configured) { <p class="notice">Subscriptions are unavailable. Every story remains free.</p> }
-    else if (!Current.SignedIn) { <a class="button" href="/account">Sign in to subscribe</a> }
+    else if (!Current.SignedIn) { <a class="button" href="account">Sign in to subscribe</a> }
     else
     {
         @if (!Current.Premium) { <p>You'll see the price before confirming payment.</p><button class="primary" @onclick="CheckoutAsync" disabled="@Busy">Continue to checkout</button> }

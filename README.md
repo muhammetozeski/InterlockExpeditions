@@ -30,3 +30,5 @@ Free play must work without payment or external service keys. Payment and advert
 ## Build and evidence
 
 Use .NET 10 and Node 24 or newer. Run `npm run verify`, then `pwsh -File scripts/Publish.ps1`. The local Release build has completed with zero warnings/errors. Reusable verification covers 174 real-SQL/engine checks, 30 provider-fixture billing checks and 10 contrast-function checks. A separate live acceptance completed all six first-episode stations with actual production C# clients and two real guest identities, then erased its temporary accounts. See [publication evidence](docs/Publication.md) for the distinction between executed API, fixture and native read evidence.
+
+Main-origin mounting: [Subpath mount](docs/Subpath-Mount.md).

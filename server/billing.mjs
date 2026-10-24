@@ -73,7 +73,7 @@ async function webhook(context) {
 
 /** Actual provider checkout and signed canonical reconciliation; absent keys never unlock Club. */
 export async function billingRoutes(context) {
-  const { request, db, account, env, parts, url } = context, path = parts.join('/'); if (!path.startsWith('billing/')) return null;
+  const { request, db, account, env, parts, url, basePath = '/' } = context, path = parts.join('/'); if (!path.startsWith('billing/')) return null;
   if (request.method === 'POST' && path === 'billing/webhook') return webhook(context);
   if (request.method === 'GET' && path === 'billing/status') {
     const ready = billingConfigured(env), price = ready ? await clubPrice(env) : null;
@@ -89,7 +89,7 @@ export async function billingRoutes(context) {
     // Two tabs still use one open Checkout. The database chooses the provider nonce before a network call.
     await db.prepare('INSERT INTO ie_checkout_locks(account_id,request_id,expires_at) SELECT ?,?,? WHERE EXISTS(SELECT 1 FROM ie_accounts WHERE id=?) ON CONFLICT(account_id) DO UPDATE SET request_id=excluded.request_id,expires_at=excluded.expires_at WHERE ie_checkout_locks.expires_at<=?').bind(account.id, nonce, Date.now() + 86400000, account.id, Date.now()).run();
     const lock = await db.prepare('SELECT request_id FROM ie_checkout_locks WHERE account_id=?').bind(account.id).first(); if (!lock) fail(401, 'This host account is no longer available.');
-    const session = await stripe(env, 'checkout/sessions', { mode: 'subscription', 'line_items[0][price]': env.STRIPE_CLUB_PRICE, 'line_items[0][quantity]': '1', 'payment_method_types[0]': 'card', client_reference_id: account.id, success_url: url.origin + '/membership?checkout=returned', cancel_url: url.origin + '/membership?checkout=cancelled' }, 'interlock:' + account.id + ':' + lock.request_id);
+    const session = await stripe(env, 'checkout/sessions', { mode: 'subscription', 'line_items[0][price]': env.STRIPE_CLUB_PRICE, 'line_items[0][quantity]': '1', 'payment_method_types[0]': 'card', client_reference_id: account.id, success_url: url.origin + basePath + 'membership?checkout=returned', cancel_url: url.origin + basePath + 'membership?checkout=cancelled' }, 'interlock:' + account.id + ':' + lock.request_id);
     const id = objectId(session.id, 'cs'); if (session.livemode !== true || !Number.isSafeInteger(session.expires_at)) fail(502, 'The provider did not return a live checkout.');
     await db.batch([db.prepare('INSERT OR IGNORE INTO ie_checkouts(id,account_id,created_at) SELECT ?,?,? WHERE EXISTS(SELECT 1 FROM ie_accounts WHERE id=?)').bind(id, account.id, Date.now(), account.id), db.prepare('INSERT OR IGNORE INTO ie_checkout_requests(account_id,request_id,session_id,expires_at) SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM ie_accounts WHERE id=?)').bind(account.id, lock.request_id, id, session.expires_at * 1000, account.id), db.prepare('UPDATE ie_checkout_locks SET expires_at=? WHERE account_id=? AND request_id=?').bind(session.expires_at * 1000, account.id, lock.request_id)]);
     const owned = await db.prepare('SELECT id FROM ie_checkouts WHERE id=? AND account_id=?').bind(id, account.id).first(); if (!owned) fail(401, 'This host account is no longer available.');
@@ -99,7 +99,7 @@ export async function billingRoutes(context) {
     requireAccount(account); configured(env); const body = await bodyOf(request); shape(body, []);
     await limit(db, account.id, 'billing-portal', 12, 3600);
     const subscription = await db.prepare('SELECT customer_id FROM ie_subscriptions WHERE account_id=? ORDER BY updated_at DESC LIMIT 1').bind(account.id).first(); if (!subscription) fail(404, 'No recorded subscription belongs to this host account.');
-    const session = await stripe(env, 'billing_portal/sessions', { customer: subscription.customer_id, return_url: url.origin + '/membership' });
+    const session = await stripe(env, 'billing_portal/sessions', { customer: subscription.customer_id, return_url: url.origin + basePath + 'membership' });
     return json({ url: redirect(session.url, 'billing.stripe.com') });
   }
   return null;
