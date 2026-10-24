@@ -1,0 +1,14 @@
+bin/
+obj/
+publish/
+node_modules/
+.wrangler/
+.vs/
+.env
+.env.*
+.dev.vars
+*.pfx
+PFX-PAROLA.txt
+AppCache/
+UserData/
+UserCache/
