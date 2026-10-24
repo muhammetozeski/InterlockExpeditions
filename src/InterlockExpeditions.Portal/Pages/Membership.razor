@@ -1,4 +1,27 @@
 @page "/membership"
 @inherits ExpeditionPage
+@inject NavigationManager Navigation
 <PageTitle>Free and Club allowances — Interlock Expeditions</PageTitle>
-<p class="eyebrow">Capacity, without pretend checkout</p><h1>Small crews can play for free.</h1><p>Every published ready episode can be played with the free room allowance. A crew guest never needs to buy access just to join a host's room.</p><div class="split"><section class="panel"><h2>Free host</h2><ul><li>Two active rooms</li><li>Up to six guest devices per room, split between two crews</li><li>All currently published ready episodes</li><li>Real shared progress, pause and reconnect</li></ul><a class="button primary" href="/host">Host a free expedition</a></section><section class="panel"><h2>Club host</h2><p>Server allowances support twelve active rooms and twelve guest devices per room after a verified paid entitlement. These capacities do not change a puzzle's rules.</p><p class="notice">Checkout is unavailable until the owner configures a real payment provider. No payment, subscription or higher allowance is being represented by this page.</p></section></div><p>No audience size, revenue or customer demand is claimed. Advertising, when configured for public discovery content, also requires the owner's approved publisher settings and consent setup.</p>
+<p class="eyebrow">Host allowances</p><h1>Small crews play for free.</h1><p>Every published ready episode is available with the free allowance. Guests can join a host’s room without buying a subscription.</p>
+@if (Status.Length > 0) { <p class="status @(HasError ? "error" : "")" role="status">@Status</p> }
+<div class="split"><section class="panel"><h2>Free host</h2><ul><li>Two active rooms</li><li>Up to six guest devices per room, split between two crews</li><li>All six ready adventures</li><li>Shared progress, pause and private reconnect</li></ul><a class="button primary" href="/host">Host a free expedition</a></section><section class="panel"><h2>Club host</h2><ul><li>Twelve active rooms</li><li>Up to twelve guest devices per new room</li><li>The same adventures and puzzle rules</li></ul>
+@if (!Loaded) { <p>Checking membership availability.</p> }
+else if (!Current.Configured) { <p class="notice">Club checkout is currently unavailable. You can use every adventure with the free allowance.</p> }
+else if (!Current.SignedIn) { <p>Sign in to the host account that should receive Club capacity.</p><a class="button" href="/account">Create or recover host account</a> }
+else
+{
+    @if (Current.Premium) { <p class="notice">Club capacity is active for this host account through @EndDate.</p> }
+    else { <p>Secure Stripe Checkout shows the current price and billing interval before you confirm. Existing rooms keep their original device limit; the larger allowance applies to newly created rooms.</p><button class="primary" @onclick="CheckoutAsync" disabled="@Busy">View Club subscription in Checkout</button> }
+    @if (Current.Subscription is not null) { <p>Recorded subscription status: <strong>@Current.Subscription.Status</strong>.</p><button @onclick="ManageAsync" disabled="@Busy">Manage or cancel subscription</button> }
+    <button @onclick="RefreshAsync" disabled="@Busy">Refresh membership status</button><p class="small">Returning from Checkout does not activate capacity by itself. A verified payment notification must confirm a live paid period. Cancellation at the period’s end preserves that paid period. Refunded or disputed current-period payments do not unlock capacity.</p>
+}
+</section></div><p>Host recovery keys protect billing access as well as rooms. Keep the key private before opening a subscription. No subscription is required to join as a guest.</p>
+@code {
+    BillingStatus Current = new(); bool Loaded;
+    string EndDate => Current.Subscription?.ExpiresAt > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(Current.Subscription.ExpiresAt).UtcDateTime.ToString("yyyy-MM-dd HH:mm 'UTC'") : "the recorded paid period";
+    protected override Task OnInitializedAsync() => RefreshAsync();
+    Task RefreshAsync() => RunAsync(async () => { Current = await Api.BillingAsync(); Loaded = true; Status = Current.Premium ? "Verified Club allowance is active." : "Membership status refreshed."; });
+    Task CheckoutAsync() => RunAsync(async () => { var result = await Api.CheckoutAsync(); Go(result.Url, "checkout.stripe.com"); });
+    Task ManageAsync() => RunAsync(async () => { var result = await Api.BillingPortalAsync(); Go(result.Url, "billing.stripe.com"); });
+    void Go(string address, string host) { if (!Uri.TryCreate(address, UriKind.Absolute, out var url) || url.Scheme != "https" || url.Host != host) throw new FormatException("The payment destination was not accepted."); Navigation.NavigateTo(address, forceLoad: true); }
+}

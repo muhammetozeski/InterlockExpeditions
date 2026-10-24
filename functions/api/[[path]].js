@@ -1,5 +1,6 @@
 import { accountRoutes } from '../../server/accounts.mjs';
 import { roomRoutes } from '../../server/rooms.mjs';
+import { billingRoutes } from '../../server/billing.mjs';
 import { episodes } from '../../content/episodes.mjs';
 import { GameError } from '../../server/engine.mjs';
 import { accountOf, fail, hash, json, limit, sameOrigin, ServiceError } from '../../server/security.mjs';
@@ -16,7 +17,7 @@ export async function onRequest({ request, env }) {
     if (request.method === 'GET' && parts.join('/') === 'health') return json({ ok: true, product: 'Interlock Expeditions', engine: 'ie-stations-v1' });
     if (request.method === 'GET' && parts.join('/') === 'episodes') return json({ episodes: episodes.map(episode => ({ id: episode.id, version: episode.version, title: episode.title, minutes: episode.minutes, tagline: episode.tagline, introduction: episode.introduction, stations: episode.stages.length })) });
     const account = await accountOf(request, env.DB), context = { request, env, db: env.DB, account, parts, url, identity };
-    for (const handler of [accountRoutes, roomRoutes]) { const response = await handler(context); if (response) return response; }
+    for (const handler of [billingRoutes, accountRoutes, roomRoutes]) { const response = await handler(context); if (response) return response; }
     fail(404, 'This Interlock Expeditions action was not found.');
   } catch (error) {
     if (error instanceof ServiceError || error instanceof GameError) return json({ error: error.message, code: error.code ?? 'station' }, error.status);

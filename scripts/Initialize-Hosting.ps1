@@ -40,8 +40,10 @@ if ($null -eq $pages) {
     # Patch only the intended binding. Never replay redacted secret values from a Pages GET response.
     $null = Invoke-Cloud -Path "pages/projects/$ProjectName" -Method 'PATCH' -Body @{ deployment_configs = @{ production = @{ d1_databases = @{ DB = @{ id = $databaseId } } } } }
 }
-$schema = Get-Content -LiteralPath (Join-Path $projectRoot 'schema/001-core.sql') -Raw
-$null = Invoke-Cloud -Path "d1/database/$databaseId/query" -Method 'POST' -Body @{ sql = $schema }
+foreach ($schemaFile in Get-ChildItem -LiteralPath (Join-Path $projectRoot 'schema') -Filter '*.sql' | Sort-Object Name) {
+    $schema = Get-Content -LiteralPath $schemaFile.FullName -Raw
+    $null = Invoke-Cloud -Path "d1/database/$databaseId/query" -Method 'POST' -Body @{ sql = $schema }
+}
 @"
 name = "$ProjectName"
 compatibility_date = "2026-10-01"

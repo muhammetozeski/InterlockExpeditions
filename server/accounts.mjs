@@ -19,6 +19,7 @@ export async function accountRoutes(context) {
   if (path === 'account/delete') {
     requireAccount(account); const body = await bodyOf(request); shape(body, ['confirmation']); if (body.confirmation !== 'DELETE MY ACCOUNT') fail(400, 'Type DELETE MY ACCOUNT to erase this host account and its rooms.');
     if (await premium(db, account.id)) fail(409, 'Let the paid period end before deleting the host account.');
+    if (await db.prepare('SELECT account_id FROM ie_checkout_locks WHERE account_id=? AND expires_at>? LIMIT 1').bind(account.id, now).first()) fail(409, 'An open checkout still belongs to this account. Let it expire before erasing the host account.');
     await db.prepare('DELETE FROM ie_accounts WHERE id=?').bind(account.id).run(); return json({ ok: true }, 200, cookie('ie_account', '', 0));
   }
   return null;

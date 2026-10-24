@@ -22,6 +22,9 @@ public sealed class ExpeditionApi(HttpClient http, ILogger<ExpeditionApi> logger
     public Task<JsonElement> LogoutAsync() => SendAsync<JsonElement>(HttpMethod.Post, "logout", new { });
     public Task<JsonElement> DeleteAccountAsync(string confirmation) => SendAsync<JsonElement>(HttpMethod.Post, "account/delete", new { confirmation });
     public Task<RoomList> RoomsAsync() => GetAsync<RoomList>("rooms");
+    public Task<BillingStatus> BillingAsync() => GetAsync<BillingStatus>("billing/status");
+    public Task<ProviderRedirect> CheckoutAsync() => MutateAsync<ProviderRedirect>("checkout", "billing/checkout", nonce => new { requestId = nonce });
+    public Task<ProviderRedirect> BillingPortalAsync() => SendAsync<ProviderRedirect>(HttpMethod.Post, "billing/portal", new { });
     public Task<RoomControl> ControlAsync(string roomId, CancellationToken cancellationToken = default) => GetAsync<RoomControl>("rooms/" + Id(roomId) + "/control", cancellationToken: cancellationToken);
     public Task<RoomControl> CreateRoomAsync(string episodeId, string title, int durationMinutes) => MutateAsync<RoomControl>("new-room", "rooms", nonce => new { requestId = nonce, episodeId, title, durationMinutes });
     public Task<RoomControl> HostAsync(string roomId, string type, string? playerId = null) => MutateAsync<RoomControl>("host:" + roomId, "rooms/" + Id(roomId) + "/host", nonce => new { requestId = nonce, type, playerId });
